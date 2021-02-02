@@ -6,12 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type Routine struct {
@@ -20,6 +20,8 @@ type Routine struct {
 	Command string `json:"Command"`
 	Start   string `json:"Start"`
 	Freq    string `json:"Freq"`
+	Active  string `json:"Active,omitempty"`
+	ID      string `json:"ID, omitempty"`
 }
 
 func main() {
@@ -33,6 +35,7 @@ func getRoutine(row interface{}) (Routine, error) {
 		return Routine{}, errors.New("Type error: failed to parse row to bson.D")
 	}
 	m := s.Map()
+	log.Printf("%v", m)
 	hub, ok := m["Hub"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Hub'")
@@ -53,7 +56,15 @@ func getRoutine(row interface{}) (Routine, error) {
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Freq'")
 	}
-	return Routine{hub, script, command, start, freq}, nil
+	active, ok := m["Freq"].(string)
+	if !ok {
+		active = ""
+	}
+	ID, ok := m["_id"].(primitive.ObjectID)
+	if !ok {
+		ID = primitive.ObjectID{}
+	}
+	return Routine{hub, script, command, start, freq, active, ID.Hex()}, nil
 }
 
 func getRoutines(response []interface{}) ([]Routine, error) {
@@ -79,7 +90,8 @@ func routineHandler(rw http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if req.Method == "GET" {
+	switch req.Method {
+	case "GET":
 		res, err := conn.GetCollection("Routines", "master", ctx)
 		if err != nil {
 			println(err)
@@ -88,9 +100,8 @@ func routineHandler(rw http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			println(err)
 		}
-		fmt.Printf("%v", rtns)
-	}
-	if req.Method == "POST" {
+		println(len(rtns))
+	case "POST":
 		buf := new(bytes.Buffer)
 		buf.ReadFrom(req.Body)
 		r := &Routine{}
@@ -99,5 +110,36 @@ func routineHandler(rw http.ResponseWriter, req *http.Request) {
 			println(err)
 		}
 		conn.InsertPost("Routines", "master", *r, ctx)
+	case "PUT":
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(req.Body)
+		r := &Routine{}
+		err := json.Unmarshal([]byte(buf.String()), r)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		ID, _ := primitive.ObjectIDFromHex(r.ID)
+		err = conn.ReplaceEntry("Routines", "master",
+			bson.D{{Key: "_id", Value: ID}},
+			bson.D{{Key: "Hub", Value: r.Hub}, {Key: "Script", Value: r.Script},
+				{Key: "Command", Value: r.Command}, {Key: "Start", Value: r.Start},
+				{Key: "Freq", Value: r.Freq}, {Key: "Active", Value: r.Active}}, ctx)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+	case "DELETE":
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(req.Body)
+		r := &Routine{}
+		err := json.Unmarshal([]byte(buf.String()), r)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		ID, _ := primitive.ObjectIDFromHex(r.ID)
+		err = conn.DeleteOne("Routines", "master",
+			bson.D{{Key: "_id", Value: ID}}, ctx)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
 	}
 }
