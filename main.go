@@ -22,7 +22,7 @@ type Routine struct {
 	Command string `json:"Command"`
 	Start   string `json:"Start"`
 	Freq    string `json:"Freq"`
-	Active  string `json:"Active,omitempty"`
+	Active  bool   `json:"Active"`
 	ID      string `json:"ID,omitempty"`
 }
 
@@ -30,6 +30,11 @@ type RoutineThread struct {
 	Rtn    Routine
 	Active chan bool
 	ID     string
+}
+
+type JsonResponse struct {
+	Code int       `json:"Code"`
+	Data []Routine `json:"Data"`
 }
 
 var ThreadObjs []RoutineThread = []RoutineThread{}
@@ -49,9 +54,9 @@ func schedule(rtns []Routine) {
 	for _, rtn := range rtns {
 		found := false
 		for i, each := range ThreadObjs {
-			if each.ID == rtn.ID && rtn.Active == "0" {
+			if each.ID == rtn.ID && !rtn.Active {
 				found = true
-				if rtn.Active == "0" {
+				if !rtn.Active {
 					each.Active <- false
 					ThreadObjs[i] = ThreadObjs[len(ThreadObjs)-1]
 					ThreadObjs[len(ThreadObjs)-1] = RoutineThread{}
@@ -59,7 +64,8 @@ func schedule(rtns []Routine) {
 				}
 			}
 		}
-		if !found {
+		// add missing routines
+		if !found && rtn.Active {
 			c := make(chan bool)
 			x := RoutineThread{rtn, c, rtn.ID}
 			go runRoutine(rtn, c)
@@ -96,15 +102,19 @@ func runRoutine(r Routine, activeC chan bool) {
 	start := time.Unix(startInt, 0)
 	freqInt, err := strconv.ParseInt(r.Freq, 10, 64)
 	CheckError(err)
-	sDelta := start.Sub(time.Now())
-	delta := sDelta + (time.Duration(freqInt) * time.Second)
-	for delta > time.Duration(time.Second) {
+	delta := start.Sub(time.Now())
+	for delta < time.Duration(time.Second) {
+		start = start.Add(time.Duration(freqInt) * time.Second)
+		delta = start.Sub(time.Now())
+	}
+	running := true
+	for running {
 		run := make(chan bool)
 		go untilNextTrigger(delta, run)
 		select {
 		case <-activeC:
 			log.Println("thread inactive")
-			delta = time.Duration(time.Second * 0)
+			running = false
 		case <-run:
 			ServerAddr, err := net.ResolveUDPAddr("udp", "127.0.0.11:32323")
 			CheckError(err)
@@ -128,7 +138,6 @@ func getRoutine(row interface{}) (Routine, error) {
 		return Routine{}, errors.New("Type error: failed to parse row to bson.D")
 	}
 	m := s.Map()
-	log.Printf("%v", m)
 	hub, ok := m["Hub"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Hub'")
@@ -149,13 +158,13 @@ func getRoutine(row interface{}) (Routine, error) {
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Freq'")
 	}
-	active, ok := m["Freq"].(string)
-	if !ok {
-		active = ""
-	}
 	ID, ok := m["_id"].(primitive.ObjectID)
 	if !ok {
-		ID = primitive.ObjectID{}
+		return Routine{}, errors.New("Type error: while analyzing row 'Freq'")
+	}
+	active, ok := m["Active"].(bool)
+	if !ok {
+		active = false
 	}
 	return Routine{hub, script, command, start, freq, active, ID.Hex()}, nil
 }
@@ -172,7 +181,18 @@ func getRoutines(response []interface{}) ([]Routine, error) {
 	return out, nil
 }
 
+func respond(rw http.ResponseWriter, rtns []Routine) {
+	rw.Header().Set("Content-Type", "application/json")
+	resp := JsonResponse{200, rtns}
+	json.NewEncoder(rw).Encode(resp)
+}
+
+func enableCors(w *http.ResponseWriter) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "localhost:3000")
+}
+
 func routineHandler(rw http.ResponseWriter, req *http.Request) {
+	enableCors(&rw)
 	conn, err := MongoHandles.NewConn("mongodb+srv://pappa:ohh5UMa3caBAdozq@cluster0.q8o2d.mongodb.net/Routines/?retryWrites=true&w=majority")
 	CheckError(err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -186,10 +206,7 @@ func routineHandler(rw http.ResponseWriter, req *http.Request) {
 	schedule(rtns)
 	switch req.Method {
 	case "GET":
-		res, err := conn.GetCollection("Routines", "master", ctx)
-		CheckError(err)
-		rtns, err = getRoutines(res)
-		CheckError(err)
+		respond(rw, rtns)
 	case "POST":
 		buf := new(bytes.Buffer)
 		buf.ReadFrom(req.Body)
