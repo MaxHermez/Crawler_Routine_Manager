@@ -47,14 +47,29 @@ func CheckError(err error) {
 
 func main() {
 	http.HandleFunc("/routines", routineHandler)
-	log.Fatal(http.ListenAndServe("localhost:8080", nil))
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func init() {
+	conn, err := MongoHandles.NewConn("mongodb+srv://maxim:x7ynW4yQz75VDsud@fwmaster.5cnit.mongodb.net/myFirstDatabase?retryWrites=true&w=majority")
+	CheckError(err)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	defer conn.Client.Disconnect(ctx)
+	CheckError(err)
+	res, err := conn.GetCollection("Routines", "master", ctx)
+	CheckError(err)
+	rtns, err := getRoutines(res)
+	CheckError(err)
+	schedule(rtns)
 }
 
 func schedule(rtns []Routine) {
 	for _, rtn := range rtns {
 		found := false
 		for i, each := range ThreadObjs {
-			if each.ID == rtn.ID && !rtn.Active {
+			// check if the routine is already running
+			if each.ID == rtn.ID {
 				found = true
 				if !rtn.Active {
 					each.Active <- false
@@ -70,7 +85,7 @@ func schedule(rtns []Routine) {
 			x := RoutineThread{rtn, c, rtn.ID}
 			go runRoutine(rtn, c)
 			ThreadObjs = append(ThreadObjs, x)
-			log.Println("added routine")
+			log.Printf("added routine, %s\n", rtn.Hub)
 		}
 	}
 	// remove deleted routines
@@ -132,6 +147,7 @@ func runRoutine(r Routine, activeC chan bool) {
 	}
 }
 
+// converts a database row into a Routine object
 func getRoutine(row interface{}) (Routine, error) {
 	s, ok := row.(bson.D)
 	if !ok {
@@ -169,6 +185,7 @@ func getRoutine(row interface{}) (Routine, error) {
 	return Routine{hub, script, command, start, freq, active, ID.Hex()}, nil
 }
 
+// get Routine objects slice from database rows
 func getRoutines(response []interface{}) ([]Routine, error) {
 	var out []Routine
 	for _, each := range response {
