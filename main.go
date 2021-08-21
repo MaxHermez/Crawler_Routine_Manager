@@ -17,19 +17,19 @@ import (
 )
 
 type Routine struct {
-	Hub     string `json:"Hub"`
-	Script  string `json:"Script"`
-	Command string `json:"Command"`
-	Start   string `json:"Start"`
-	Freq    string `json:"Freq"`
-	Active  bool   `json:"Active"`
-	ID      string `json:"ID,omitempty"`
+	Hub     string             `json:"Hub"`
+	Script  string             `json:"Script"`
+	Command string             `json:"Command"`
+	Start   string             `json:"Start"`
+	Freq    string             `json:"Freq"`
+	Active  bool               `json:"Active"`
+	ID      primitive.ObjectID `bson:"_id,omitempty"`
 }
 
 type RoutineThread struct {
 	Rtn    Routine
 	Active chan bool
-	ID     string
+	ID     primitive.ObjectID
 }
 
 type JsonResponse struct {
@@ -186,7 +186,7 @@ func getRoutine(row interface{}) (Routine, error) {
 	if !ok {
 		active = false
 	}
-	return Routine{hub, script, command, start, freq, active, ID.Hex()}, nil
+	return Routine{hub, script, command, start, freq, active, ID}, nil
 }
 
 // get Routine objects slice from database rows
@@ -245,9 +245,9 @@ func routineHandler(rw http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
-		ID, _ := primitive.ObjectIDFromHex(r.ID)
+		// ID, _ := primitive.ObjectIDFromHex(r.ID)
 		err = conn.ReplaceEntry("Routines", "master",
-			bson.D{{Key: "_id", Value: ID}},
+			bson.D{{Key: "_id", Value: r.ID}},
 			bson.D{{Key: "Hub", Value: r.Hub}, {Key: "Script", Value: r.Script},
 				{Key: "Command", Value: r.Command}, {Key: "Start", Value: r.Start},
 				{Key: "Freq", Value: r.Freq}, {Key: "Active", Value: r.Active}}, ctx)
@@ -262,9 +262,9 @@ func routineHandler(rw http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
-		ID, _ := primitive.ObjectIDFromHex(r.ID)
+		// ID, _ := primitive.ObjectIDFromHex(r.ID)
 		err = conn.DeleteOne("Routines", "master",
-			bson.D{{Key: "_id", Value: ID}}, ctx)
+			bson.D{{Key: "_id", Value: r.ID}}, ctx)
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
