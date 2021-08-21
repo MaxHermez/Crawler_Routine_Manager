@@ -37,6 +37,8 @@ type JsonResponse struct {
 	Data []Routine `json:"Data"`
 }
 
+const URI = "mongodb+srv://Maxim:x7ynW4yQz75VDsud@fwmaster.5cnit.mongodb.net/Routines?retryWrites=true&w=majority"
+
 var ThreadObjs []RoutineThread = []RoutineThread{}
 
 func CheckError(err error) {
@@ -51,9 +53,9 @@ func main() {
 }
 
 func init() {
-	conn, err := MongoHandles.NewConn("mongodb+srv://maxim:x7ynW4yQz75VDsud@fwmaster.5cnit.mongodb.net/myFirstDatabase?retryWrites=true&w=majority")
+	conn, err := MongoHandles.NewConn(URI)
 	CheckError(err)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	defer conn.Client.Disconnect(ctx)
 	CheckError(err)
@@ -62,6 +64,7 @@ func init() {
 	rtns, err := getRoutines(res)
 	CheckError(err)
 	schedule(rtns)
+	log.Println("finished init")
 }
 
 func schedule(rtns []Routine) {
@@ -131,6 +134,7 @@ func runRoutine(r Routine, activeC chan bool) {
 			log.Println("thread inactive")
 			running = false
 		case <-run:
+			log.Println("Routine triggered")
 			ServerAddr, err := net.ResolveUDPAddr("udp", "127.0.0.11:32323")
 			CheckError(err)
 			Conn, err := net.DialUDP("udp", nil, ServerAddr)
@@ -154,31 +158,31 @@ func getRoutine(row interface{}) (Routine, error) {
 		return Routine{}, errors.New("Type error: failed to parse row to bson.D")
 	}
 	m := s.Map()
-	hub, ok := m["Hub"].(string)
+	hub, ok := m["hub"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Hub'")
 	}
-	script, ok := m["Script"].(string)
+	script, ok := m["script"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Script'")
 	}
-	command, ok := m["Command"].(string)
+	command, ok := m["command"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Command'")
 	}
-	start, ok := m["Start"].(string)
+	start, ok := m["start"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Start'")
 	}
-	freq, ok := m["Freq"].(string)
+	freq, ok := m["freq"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Freq'")
 	}
 	ID, ok := m["_id"].(primitive.ObjectID)
 	if !ok {
-		return Routine{}, errors.New("Type error: while analyzing row 'Freq'")
+		return Routine{}, errors.New("Type error: while analyzing row 'Active'")
 	}
-	active, ok := m["Active"].(bool)
+	active, ok := m["active"].(bool)
 	if !ok {
 		active = false
 	}
@@ -212,9 +216,9 @@ func enableCors(w *http.ResponseWriter) {
 
 func routineHandler(rw http.ResponseWriter, req *http.Request) {
 	enableCors(&rw)
-	conn, err := MongoHandles.NewConn("mongodb+srv://pappa:ohh5UMa3caBAdozq@cluster0.q8o2d.mongodb.net/Routines/?retryWrites=true&w=majority")
+	conn, err := MongoHandles.NewConn(URI)
 	CheckError(err)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	defer conn.Client.Disconnect(ctx)
 	CheckError(err)
