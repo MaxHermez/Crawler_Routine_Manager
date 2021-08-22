@@ -158,23 +158,23 @@ func getRoutine(row interface{}) (Routine, error) {
 		return Routine{}, errors.New("Type error: failed to parse row to bson.D")
 	}
 	m := s.Map()
-	hub, ok := m["hub"].(string)
+	hub, ok := m["Hub"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Hub'")
 	}
-	script, ok := m["script"].(string)
+	script, ok := m["Script"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Script'")
 	}
-	command, ok := m["command"].(string)
+	command, ok := m["Command"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Command'")
 	}
-	start, ok := m["start"].(string)
+	start, ok := m["Start"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Start'")
 	}
-	freq, ok := m["freq"].(string)
+	freq, ok := m["Freq"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Freq'")
 	}
@@ -182,7 +182,7 @@ func getRoutine(row interface{}) (Routine, error) {
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Active'")
 	}
-	active, ok := m["active"].(bool)
+	active, ok := m["Active"].(bool)
 	if !ok {
 		active = false
 	}
