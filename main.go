@@ -158,23 +158,23 @@ func getRoutine(row interface{}) (Routine, error) {
 		return Routine{}, errors.New("Type error: failed to parse row to bson.D")
 	}
 	m := s.Map()
-	hub, ok := m["Hub"].(string)
+	hub, ok := m["hub"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Hub'")
 	}
-	script, ok := m["Script"].(string)
+	script, ok := m["script"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Script'")
 	}
-	command, ok := m["Command"].(string)
+	command, ok := m["command"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Command'")
 	}
-	start, ok := m["Start"].(string)
+	start, ok := m["start"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Start'")
 	}
-	freq, ok := m["Freq"].(string)
+	freq, ok := m["freq"].(string)
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Freq'")
 	}
@@ -182,7 +182,7 @@ func getRoutine(row interface{}) (Routine, error) {
 	if !ok {
 		return Routine{}, errors.New("Type error: while analyzing row 'Active'")
 	}
-	active, ok := m["Active"].(bool)
+	active, ok := m["active"].(bool)
 	if !ok {
 		active = false
 	}
@@ -248,9 +248,9 @@ func routineHandler(rw http.ResponseWriter, req *http.Request) {
 		// ID, _ := primitive.ObjectIDFromHex(r.ID)
 		err = conn.ReplaceEntry("Routines", "master",
 			bson.D{{Key: "_id", Value: r.ID}},
-			bson.D{{Key: "Hub", Value: r.Hub}, {Key: "Script", Value: r.Script},
-				{Key: "Command", Value: r.Command}, {Key: "Start", Value: r.Start},
-				{Key: "Freq", Value: r.Freq}, {Key: "Active", Value: r.Active}}, ctx)
+			bson.D{{Key: "hub", Value: r.Hub}, {Key: "script", Value: r.Script},
+				{Key: "command", Value: r.Command}, {Key: "start", Value: r.Start},
+				{Key: "freq", Value: r.Freq}, {Key: "active", Value: r.Active}}, ctx)
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
