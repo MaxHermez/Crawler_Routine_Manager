@@ -119,6 +119,7 @@ func runRoutine(r Routine, activeC chan bool) {
 	CheckError(err)
 	start := time.Unix(startInt, 0)
 	freqInt, err := strconv.ParseInt(r.Freq, 10, 64)
+	freqInt = freqInt * 3600 * 24 // the frequency is inputted in days, we need the int to represent seconds
 	CheckError(err)
 	delta := start.Sub(time.Now())
 	for delta < time.Duration(time.Second) {
