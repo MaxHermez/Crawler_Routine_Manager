@@ -37,7 +37,7 @@ type JsonResponse struct {
 	Data []Routine `json:"Data"`
 }
 
-const URI = "mongodb+srv://Maxim:x7ynW4yQz75VDsud@fwmaster.5cnit.mongodb.net/Routines?retryWrites=true&w=majority"
+const URI = "mongodb://Maxim:x7ynW4yQz75VDsud@fwmaster-shard-00-00.5cnit.mongodb.net:27017,fwmaster-shard-00-01.5cnit.mongodb.net:27017,fwmaster-shard-00-02.5cnit.mongodb.net:27017/Routines?ssl=true&replicaSet=atlas-sixrl8-shard-0&authSource=admin&retryWrites=true&w=majority"
 
 var ThreadObjs []RoutineThread = []RoutineThread{}
 
