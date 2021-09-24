@@ -1,7 +1,6 @@
 package main
 
 import (
-	"MongoHandles"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -53,7 +52,7 @@ func main() {
 }
 
 func init() {
-	conn, err := MongoHandles.NewConn(URI)
+	conn, err := NewConn(URI)
 	CheckError(err)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -212,12 +211,12 @@ func respond(rw http.ResponseWriter, rtns []Routine) {
 func enableCors(w *http.ResponseWriter) {
 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
 	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, token")
 }
 
 func routineHandler(rw http.ResponseWriter, req *http.Request) {
 	enableCors(&rw)
-	conn, err := MongoHandles.NewConn(URI)
+	conn, err := NewConn(URI)
 	CheckError(err)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
