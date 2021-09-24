@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -18,7 +20,26 @@ type MongoField struct {
 	Value string
 }
 
-func NewConn(URI string) (*Conn, error) {
+func parseURI(shards string) string {
+	cwd, _ := os.Getwd()
+	path := ""
+	// check if it's a Windows or Linux URI
+	if strings.Contains(cwd, "\\") {
+		path = cwd + "\\cert.pem"
+	} else {
+		path = "/etc/ssl/certs/mongocert.pem"
+	}
+	if _, err := os.Stat(path); err != nil {
+		log.Fatalf("Could not find the cert.pem file i the CWD, nor in the /etc/ssl/certs directory")
+		panic("Please copy a certificate file from mongoDB into the CWD and rename it to mongocert.pem")
+	} else {
+		uri := "mongodb://" + shards + "/Dashboard?authSource=%24external&authMechanism=MONGODB-X509&retryWrites=true&w=majority&tlsCertificateKeyFile=" + path
+		return uri
+	}
+}
+
+func NewConn(shards string) (*Conn, error) {
+	URI := parseURI(shards)
 	clientOptions := options.Client().ApplyURI(URI)
 	client, err := mongo.Connect(context.TODO(), clientOptions)
 	if err != nil {

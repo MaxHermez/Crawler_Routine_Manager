@@ -36,7 +36,7 @@ type JsonResponse struct {
 	Data []Routine `json:"Data"`
 }
 
-const URI = "mongodb://Maxim:x7ynW4yQz75VDsud@fwmaster-shard-00-00.5cnit.mongodb.net:27017,fwmaster-shard-00-01.5cnit.mongodb.net:27017,fwmaster-shard-00-02.5cnit.mongodb.net:27017/Routines?ssl=true&replicaSet=atlas-sixrl8-shard-0&authSource=admin&retryWrites=true&w=majority"
+const shards = "fwmaster-shard-00-00.5cnit.mongodb.net:27017,fwmaster-shard-00-01.5cnit.mongodb.net:27017,fwmaster-shard-00-02.5cnit.mongodb.net:27017"
 
 var ThreadObjs []RoutineThread = []RoutineThread{}
 
@@ -52,13 +52,13 @@ func main() {
 }
 
 func init() {
-	conn, err := NewConn(URI)
+	conn, err := NewConn(shards)
 	CheckError(err)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	defer conn.Client.Disconnect(ctx)
 	CheckError(err)
-	res, err := conn.GetCollection("Routines", "master", ctx)
+	res, err := conn.GetCollection("Dashboard", "Routines", ctx)
 	CheckError(err)
 	rtns, err := getRoutines(res)
 	CheckError(err)
@@ -120,10 +120,10 @@ func runRoutine(r Routine, activeC chan bool) {
 	freqInt, err := strconv.ParseInt(r.Freq, 10, 64)
 	freqInt = freqInt * 3600 * 24 // the frequency is inputted in days, we need the int to represent seconds
 	CheckError(err)
-	delta := start.Sub(time.Now())
+	delta := time.Until(start)
 	for delta < time.Duration(time.Second) {
 		start = start.Add(time.Duration(freqInt) * time.Second)
-		delta = start.Sub(time.Now())
+		delta = time.Until(start)
 	}
 	running := true
 	for running {
@@ -155,32 +155,32 @@ func runRoutine(r Routine, activeC chan bool) {
 func getRoutine(row interface{}) (Routine, error) {
 	s, ok := row.(bson.D)
 	if !ok {
-		return Routine{}, errors.New("Type error: failed to parse row to bson.D")
+		return Routine{}, errors.New("type error: failed to parse row to bson.D")
 	}
 	m := s.Map()
 	hub, ok := m["hub"].(string)
 	if !ok {
-		return Routine{}, errors.New("Type error: while analyzing row 'Hub'")
+		return Routine{}, errors.New("type error: while analyzing row 'Hub'")
 	}
 	script, ok := m["script"].(string)
 	if !ok {
-		return Routine{}, errors.New("Type error: while analyzing row 'Script'")
+		return Routine{}, errors.New("type error: while analyzing row 'Script'")
 	}
 	command, ok := m["command"].(string)
 	if !ok {
-		return Routine{}, errors.New("Type error: while analyzing row 'Command'")
+		return Routine{}, errors.New("type error: while analyzing row 'Command'")
 	}
 	start, ok := m["start"].(string)
 	if !ok {
-		return Routine{}, errors.New("Type error: while analyzing row 'Start'")
+		return Routine{}, errors.New("type error: while analyzing row 'Start'")
 	}
 	freq, ok := m["freq"].(string)
 	if !ok {
-		return Routine{}, errors.New("Type error: while analyzing row 'Freq'")
+		return Routine{}, errors.New("type error: while analyzing row 'Freq'")
 	}
 	ID, ok := m["_id"].(primitive.ObjectID)
 	if !ok {
-		return Routine{}, errors.New("Type error: while analyzing row 'Active'")
+		return Routine{}, errors.New("type error: while analyzing row 'Active'")
 	}
 	active, ok := m["active"].(bool)
 	if !ok {
@@ -216,13 +216,13 @@ func enableCors(w *http.ResponseWriter) {
 
 func routineHandler(rw http.ResponseWriter, req *http.Request) {
 	enableCors(&rw)
-	conn, err := NewConn(URI)
+	conn, err := NewConn(shards)
 	CheckError(err)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	defer conn.Client.Disconnect(ctx)
 	CheckError(err)
-	res, err := conn.GetCollection("Routines", "master", ctx)
+	res, err := conn.GetCollection("Dashboard", "Routines", ctx)
 	CheckError(err)
 	rtns, err := getRoutines(res)
 	CheckError(err)
@@ -234,19 +234,19 @@ func routineHandler(rw http.ResponseWriter, req *http.Request) {
 		buf := new(bytes.Buffer)
 		buf.ReadFrom(req.Body)
 		r := &Routine{}
-		err := json.Unmarshal([]byte(buf.String()), r)
+		err := json.Unmarshal(buf.Bytes(), r)
 		CheckError(err)
-		conn.InsertPost("Routines", "master", *r, ctx)
+		conn.InsertPost("Dashboard", "Routines", *r, ctx)
 	case "PUT":
 		buf := new(bytes.Buffer)
 		buf.ReadFrom(req.Body)
 		r := &Routine{}
-		err := json.Unmarshal([]byte(buf.String()), r)
+		err := json.Unmarshal(buf.Bytes(), r)
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
 		// ID, _ := primitive.ObjectIDFromHex(r.ID)
-		err = conn.ReplaceEntry("Routines", "master",
+		err = conn.ReplaceEntry("Dashboard", "Routines",
 			bson.D{{Key: "_id", Value: r.ID}},
 			bson.D{{Key: "hub", Value: r.Hub}, {Key: "script", Value: r.Script},
 				{Key: "command", Value: r.Command}, {Key: "start", Value: r.Start},
@@ -258,12 +258,12 @@ func routineHandler(rw http.ResponseWriter, req *http.Request) {
 		buf := new(bytes.Buffer)
 		buf.ReadFrom(req.Body)
 		r := &Routine{}
-		err := json.Unmarshal([]byte(buf.String()), r)
+		err := json.Unmarshal(buf.Bytes(), r)
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
 		// ID, _ := primitive.ObjectIDFromHex(r.ID)
-		err = conn.DeleteOne("Routines", "master",
+		err = conn.DeleteOne("Dashboard", "Routines",
 			bson.D{{Key: "_id", Value: r.ID}}, ctx)
 		if err != nil {
 			log.Fatalf("%v", err)
