@@ -25,7 +25,7 @@ func parseURI(shards string) string {
 	path := ""
 	// check if it's a Windows or Linux URI
 	if strings.Contains(cwd, "\\") {
-		path = cwd + "\\cert.pem"
+		path = cwd + "\\mongocert.pem"
 	} else {
 		path = "/etc/ssl/certs/mongocert.pem"
 	}

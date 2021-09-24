@@ -38,6 +38,7 @@ type JsonResponse struct {
 
 const shards = "fwmaster-shard-00-00.5cnit.mongodb.net:27017,fwmaster-shard-00-01.5cnit.mongodb.net:27017,fwmaster-shard-00-02.5cnit.mongodb.net:27017"
 
+var rtns []Routine
 var ThreadObjs []RoutineThread = []RoutineThread{}
 
 func CheckError(err error) {
@@ -60,29 +61,35 @@ func init() {
 	CheckError(err)
 	res, err := conn.GetCollection("Dashboard", "Routines", ctx)
 	CheckError(err)
-	rtns, err := getRoutines(res)
+	rtns, err = getRoutines(res)
 	CheckError(err)
-	schedule(rtns)
+	schedule()
 	log.Println("finished init")
 }
 
-func schedule(rtns []Routine) {
+func schedule() {
+	// delete old threads
+	for _, each := range ThreadObjs {
+		each.Active <- false
+	}
+	ThreadObjs = []RoutineThread{}
 	for _, rtn := range rtns {
-		found := false
-		for i, each := range ThreadObjs {
+		// found := false
+		// for i, each := range ThreadObjs {
 			// check if the routine is already running
-			if each.ID == rtn.ID {
-				found = true
-				if !rtn.Active {
-					each.Active <- false
-					ThreadObjs[i] = ThreadObjs[len(ThreadObjs)-1]
-					ThreadObjs[len(ThreadObjs)-1] = RoutineThread{}
-					ThreadObjs = ThreadObjs[:len(ThreadObjs)-1]
-				}
-			}
-		}
+			// if each.ID == rtn.ID {
+				// found = true
+				// if !rtn.Active {
+				// 	each.Active <- false
+				// 	ThreadObjs[i] = ThreadObjs[len(ThreadObjs)-1]
+				// 	ThreadObjs[len(ThreadObjs)-1] = RoutineThread{}
+				// 	ThreadObjs = ThreadObjs[:len(ThreadObjs)-1]
+				// }
+			// }
+		// }
 		// add missing routines
-		if !found && rtn.Active {
+		// if !found && rtn.Active {
+		if rtn.Active {
 			c := make(chan bool)
 			x := RoutineThread{rtn, c, rtn.ID}
 			go runRoutine(rtn, c)
@@ -91,24 +98,24 @@ func schedule(rtns []Routine) {
 		}
 	}
 	// remove deleted routines
-	for i, each := range ThreadObjs {
-		found := false
-		for _, rtn := range rtns {
-			if rtn.ID == each.ID {
-				found = true
-			}
-		}
-		if !found {
-			each.Active <- false
-			ThreadObjs[i] = ThreadObjs[len(ThreadObjs)-1]
-			ThreadObjs[len(ThreadObjs)-1] = RoutineThread{}
-			ThreadObjs = ThreadObjs[:len(ThreadObjs)-1]
-		}
-	}
+	// for i, each := range ThreadObjs {
+	// 	found := false
+	// 	for _, rtn := range rtns {
+	// 		if rtn.ID == each.ID {
+	// 			found = true
+	// 		}
+	// 	}
+	// 	if !found {
+	// 		each.Active <- false
+	// 		ThreadObjs[i] = ThreadObjs[len(ThreadObjs)-1]
+	// 		ThreadObjs[len(ThreadObjs)-1] = RoutineThread{}
+	// 		ThreadObjs = ThreadObjs[:len(ThreadObjs)-1]
+	// 	}
+	// }
 }
 
 func untilNextTrigger(duration time.Duration, c chan bool) {
-	log.Println("started waiting")
+	log.Println("started waiting until " + time.Now().Add(duration).Format("Mon Jan 2 15:04:05 2006"))
 	time.Sleep(duration)
 	c <- true
 }
@@ -224,9 +231,9 @@ func routineHandler(rw http.ResponseWriter, req *http.Request) {
 	CheckError(err)
 	res, err := conn.GetCollection("Dashboard", "Routines", ctx)
 	CheckError(err)
-	rtns, err := getRoutines(res)
+	rtns, err = getRoutines(res)
 	CheckError(err)
-	schedule(rtns)
+	schedule()
 	switch req.Method {
 	case "GET":
 		respond(rw, rtns)
@@ -237,6 +244,8 @@ func routineHandler(rw http.ResponseWriter, req *http.Request) {
 		err := json.Unmarshal(buf.Bytes(), r)
 		CheckError(err)
 		conn.InsertPost("Dashboard", "Routines", *r, ctx)
+		rtns = append(rtns, *r)
+		schedule()
 	case "PUT":
 		buf := new(bytes.Buffer)
 		buf.ReadFrom(req.Body)
@@ -246,11 +255,18 @@ func routineHandler(rw http.ResponseWriter, req *http.Request) {
 			log.Fatalf("%v", err)
 		}
 		// ID, _ := primitive.ObjectIDFromHex(r.ID)
+		log.Println(r)
 		err = conn.ReplaceEntry("Dashboard", "Routines",
 			bson.D{{Key: "_id", Value: r.ID}},
 			bson.D{{Key: "hub", Value: r.Hub}, {Key: "script", Value: r.Script},
 				{Key: "command", Value: r.Command}, {Key: "start", Value: r.Start},
 				{Key: "freq", Value: r.Freq}, {Key: "active", Value: r.Active}}, ctx)
+		CheckError(err)
+		res, err := conn.GetCollection("Dashboard", "Routines", ctx)
+		CheckError(err)
+		rtns, err = getRoutines(res)
+		CheckError(err)
+		schedule()
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
@@ -268,5 +284,10 @@ func routineHandler(rw http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
+		res, err := conn.GetCollection("Dashboard", "Routines", ctx)
+		CheckError(err)
+		rtns, err = getRoutines(res)
+		CheckError(err)
+		schedule()
 	}
 }
